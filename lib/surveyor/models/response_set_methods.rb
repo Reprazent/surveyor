@@ -52,7 +52,6 @@ module Surveyor
             result
           end
 
-          private
             def reject_or_destroy_blanks(hash_of_hashes)
               result = {}
               (hash_of_hashes || {}).each_pair do |k, hash|
