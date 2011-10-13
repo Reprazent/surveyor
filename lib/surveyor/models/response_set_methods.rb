@@ -1,3 +1,5 @@
+require 'fastercsv'
+require 'csv'
 module Surveyor
   module Models
     module ResponseSetMethods
@@ -7,37 +9,62 @@ module Surveyor
         base.send :belongs_to, :user
         base.send :has_many, :responses, :dependent => :destroy
         base.send :accepts_nested_attributes_for, :responses, :allow_destroy => true
-        
+
         @@validations_already_included ||= nil
         unless @@validations_already_included
           # Validations
           base.send :validates_presence_of, :survey_id
           base.send :validates_associated, :responses
           base.send :validates_uniqueness_of, :access_code
-          
+
           @@validations_already_included = true
         end
 
         # Attributes
         base.send :attr_protected, :completed_at
-        
+
         # Class methods
         base.instance_eval do
-          def reject_or_destroy_blanks(hash_of_hashes)
-            result = {}
+          def to_savable(hash_of_hashes)
+            result = []
             (hash_of_hashes || {}).each_pair do |k, hash|
               hash = Response.applicable_attributes(hash)
               if has_blank_value?(hash)
-                result.merge!({k => hash.merge("_destroy" => "true")}) if hash.has_key?("id")
+                result << hash.merge!({:_destroy => '1'}).except('answer_id') if hash.has_key?('id')
               else
-                result.merge!({k => hash})
+                result << hash
               end
             end
             result
           end
+
           def has_blank_value?(hash)
-            hash["answer_id"].blank? or hash.any?{|k,v| v.is_a?(Array) ? v.all?{|x| x.to_s.blank?} : v.to_s.blank?}
+            return true if hash["answer_id"].blank?
+            return false if (q = Question.find_by_id(hash["question_id"])) and q.pick == "one"
+            hash.any?{|k,v| v.is_a?(Array) ? v.all?{|x| x.to_s.blank?} : v.to_s.blank?}
           end
+
+          def trim_for_lookups(hash_of_hashes)
+            result = {}
+            (reject_or_destroy_blanks(hash_of_hashes) || {}).each_pair do |k, hash|
+              result.merge!({k => {"question_id" => hash["question_id"], "answer_id" => hash["answer_id"]}.merge(hash.has_key?("response_group") ? {"response_group" => hash["response_group"]} : {} ).merge(hash.has_key?("id") ? {"id" => hash["id"]} : {} ).merge(hash.has_key?("_destroy") ? {"_destroy" => hash["_destroy"]} : {} )})
+            end
+            result
+          end
+
+          private
+            def reject_or_destroy_blanks(hash_of_hashes)
+              result = {}
+              (hash_of_hashes || {}).each_pair do |k, hash|
+                hash = Response.applicable_attributes(hash)
+                if has_blank_value?(hash)
+                  result.merge!({k => hash.merge("_destroy" => "true")}) if hash.has_key?("id")
+                else
+                  result.merge!({k => hash})
+                end
+              end
+              result
+            end
         end
       end
 
@@ -63,8 +90,8 @@ module Surveyor
         qcols = Question.content_columns.map(&:name) - %w(created_at updated_at)
         acols = Answer.content_columns.map(&:name) - %w(created_at updated_at)
         rcols = Response.content_columns.map(&:name)
-        require 'fastercsv'
-        FCSV(result = "") do |csv|
+        csvlib = CSV.const_defined?(:Reader) ? FasterCSV : CSV
+        result = csvlib.generate do |csv|
           csv << (access_code ? ["response set access code"] : []) + qcols.map{|qcol| "question.#{qcol}"} + acols.map{|acol| "answer.#{acol}"} + rcols.map{|rcol| "response.#{rcol}"} if print_header
           responses.each do |response|
             csv << (access_code ? [self.access_code] : []) + qcols.map{|qcol| response.question.send(qcol)} + acols.map{|acol| response.answer.send(acol)} + rcols.map{|rcol| response.send(rcol)}
@@ -75,7 +102,7 @@ module Surveyor
       def complete!
         self.completed_at = Time.now
       end
-      
+
       def complete?
         !completed_at.nil?
       end
@@ -120,18 +147,18 @@ module Surveyor
       def unanswered_dependencies
         unanswered_question_dependencies + unanswered_question_group_dependencies
       end
-      
+
       def unanswered_question_dependencies
         dependencies.select{|d| d.is_met?(self) and d.question and self.is_unanswered?(d.question)}.map(&:question)
       end
-      
+
       def unanswered_question_group_dependencies
         dependencies.select{|d| d.is_met?(self) and d.question_group and self.is_group_unanswered?(d.question_group)}.map(&:question_group)
       end
 
       def all_dependencies(question_ids = nil)
         arr = dependencies(question_ids).partition{|d| d.is_met?(self) }
-        {:show => arr[0].map{|d| d.question_group_id.nil? ? "q_#{d.question_id}" : "qg_#{d.question_group_id}"}, :hide => arr[1].map{|d| d.question_group_id.nil? ? "q_#{d.question_id}" : "qg_#{d.question_group_id}"}}
+        {:show => arr[0].map{|d| d.question_group_id.nil? ? "q_#{d.question_id}" : "g_#{d.question_group_id}"}, :hide => arr[1].map{|d| d.question_group_id.nil? ? "q_#{d.question_id}" : "g_#{d.question_group_id}"}}
       end
 
       # Check existence of responses to questions from a given survey_section
@@ -142,7 +169,10 @@ module Surveyor
       protected
 
       def dependencies(question_ids = nil)
-        Dependency.all(:include => :dependency_conditions, :conditions => {:dependency_conditions => {:question_id => question_ids || responses.map(&:question_id)}})
+        deps = Dependency.all(:include => :dependency_conditions, :conditions => {:dependency_conditions => {:question_id => question_ids || responses.map(&:question_id)}})
+        # this is a work around for a bug in active_record in rails 2.3 which incorrectly eager-loads associatins when a condition clause includes an association limiter
+        deps.each{|d| d.dependency_conditions.reload}
+        deps
       end
     end
   end

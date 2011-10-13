@@ -94,7 +94,15 @@ and read surveys/EXTENDING\_SURVEYOR
 
 # Requirements
 
-Surveyor depends on Ruby (1.8.7 - 1.9.1), Rails 3 and HAML/SASS http://haml.hamptoncatlin.com/. It also depends on fastercsv for csv exports.
+Surveyor depends on:
+
+* Ruby (1.8.7 - 1.9.2)
+* Rails 2.3
+* HAML
+* SASS
+* fastercsv (or CSV for ruby 1.9) for csv exports
+* formtastic
+* UUID
 
 # Contributing, testing
 

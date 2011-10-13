@@ -1,6 +1,7 @@
 %w(survey survey_section question_group question dependency dependency_condition answer validation validation_condition).each {|model| require model }
-require 'fastercsv'
 require 'active_support' # for humanize
+require 'fastercsv'
+require 'csv'
 module Surveyor
   class RedcapParser
     # Attributes
@@ -19,10 +20,11 @@ module Surveyor
       self.context = {}
     end
     def parse(str, filename)
+      csvlib = CSV.const_defined?(:Reader) ? FasterCSV : CSV
       begin
-        FasterCSV.parse(str, :headers => :first_row, :return_headers => true, :header_converters => :symbol) do |r|
+        csvlib.parse(str, :headers => :first_row, :return_headers => true, :header_converters => :symbol) do |r|
           if r.header_row? # header row
-            return puts "Missing headers: #{missing_columns(r).inspect}\n\n" unless missing_columns(r).blank?
+            return puts "Missing headers: #{missing_columns(r.headers).inspect}\n\n" unless missing_columns(r.headers).blank?
             context[:survey] = Survey.new(:title => filename)
             print "survey_#{context[:survey].access_code} "
           else # non-header rows
@@ -35,17 +37,21 @@ module Surveyor
         end
         print context[:survey].save ? "saved. " : " not saved! #{context[:survey].errors.each_full{|x| x }.join(", ")} "
         # print context[:survey].sections.map(&:questions).flatten.map(&:answers).flatten.map{|x| x.errors.each_full{|y| y}.join}.join
-      rescue FasterCSV::MalformedCSVError
+      rescue csvlib::MalformedCSVError
         puts = "Oops. Not a valid CSV file."
       # ensure
       end
       return context[:survey]
     end
     def missing_columns(r)
-      required_columns - r.headers.map(&:to_s)
+      missing = []
+      missing << "choices_or_calculations" unless r.map(&:to_s).include?("choices_or_calculations") or r.map(&:to_s).include?("choices_calculations_or_slider_labels")
+      missing << "text_validation_type" unless r.map(&:to_s).include?("text_validation_type") or r.map(&:to_s).include?("text_validation_type_or_show_slider_number") 
+      missing += (static_required_columns - r.map(&:to_s))
     end
-    def required_columns
-      %w(variable__field_name form_name field_units section_header field_type field_label choices_or_calculations field_note text_validation_type text_validation_min text_validation_max identifier branching_logic_show_field_only_if required_field)
+    def static_required_columns
+      # no longer requiring field_units
+      %w(variable__field_name form_name section_header field_type field_label field_note text_validation_min text_validation_max identifier branching_logic_show_field_only_if required_field)
     end
   end
 end
@@ -108,19 +114,18 @@ class Dependency < ActiveRecord::Base
     end
   end
   def self.decompose_component(str)
-     # [initial_52] = "1"
-    if match = str.match(/^\[(\w+)\] ?([!=><]+) ?"(\w+)"$/)
-      {:question_reference => match[1], :operator => match[2].gsub(/^=$/, "=="), :answer_reference => match[3]}
-    # [initial_119(2)] = "1"
-    elsif match = str.match(/^\[(\w+)\((\w+)\)\] ?([!=><]+) ?"1"$/)
-      {:question_reference => match[1], :operator => match[3].gsub(/^=$/, "=="), :answer_reference => match[2]}
-    # [f1_q15] >= 21
-    elsif match = str.match(/^\[(\w+)\] ?([!=><]+) ?(\d+)$/)
-      {:question_reference => match[1], :operator => match[2].gsub(/^=$/, "=="), :integer_value => match[3]}
-    # uhoh
+    # [initial_52] = "1" or [f1_q15] = '' or [f1_q15] = '-2' or [hi_event1_type] <> ''
+    if match = str.match(/^\[(\w+)\] ?([!=><]+) ?['"](-?\w*)['"]$/)
+      {:question_reference => match[1], :operator => match[2].gsub(/^=$/, "==").gsub(/^<>$/, "!="), :answer_reference => match[3]}
+    # [initial_119(2)] = "1" or [hiprep_heat2(97)] = '1'
+    elsif match = str.match(/^\[(\w+)\((\w+)\)\] ?([!=><]+) ?['"]1['"]$/)
+      {:question_reference => match[1], :operator => match[3].gsub(/^=$/, "==").gsub(/^<>$/, "!="), :answer_reference => match[2]}
+    # [f1_q15] >= 21 or [f1_q15] >= -21
+    elsif match = str.match(/^\[(\w+)\] ?([!=><]+) ?(-?\d+)$/)
+      {:question_reference => match[1], :operator => match[2].gsub(/^=$/, "==").gsub(/^<>$/, "!="), :integer_value => match[3]}
     else
       puts "\n!!! skipping dependency_condition #{str}"
-    end
+    end    
   end
   def self.decompose_rule(str)
     # see spec/lib/redcap_parser_spec.rb for examples
@@ -179,9 +184,9 @@ class Answer < ActiveRecord::Base
     when "file"
       puts "\n!!! skipping answer: file"
     end
-    r[:choices_or_calculations].to_s.split("|").each do |pair|
-      aref, atext = pair.strip.split(", ")
-      if aref.blank? or atext.blank?
+    (r[:choices_or_calculations] || r[:choices_calculations_or_slider_labels]).to_s.split("|").each do |pair|
+      aref, atext = pair.split(",").map(&:strip)
+      if aref.blank? or atext.blank? or (aref.to_i.to_s != aref)
         puts "\n!!! skipping answer #{pair}"
       else
         context[:answer] = context[:question].answers.build(:reference_identifier => aref, :text => atext)

@@ -174,7 +174,7 @@ class Dependency < ActiveRecord::Base
     
     # build and set context
     if context[:question]
-      context[:dependency] = context[:question].build_dependency({:question_group => context[:question_group]}.merge(args[0] || {}))
+      context[:dependency] = context[:question].build_dependency(args[0] || {})
     elsif context[:question_group]
       context[:dependency] = context[:question_group].build_dependency(args[0] || {})
     end
@@ -198,11 +198,11 @@ class DependencyCondition < ActiveRecord::Base
         { 
           :context_reference => context,
           :operator => a1 || "==",
-          :question_reference => a0.to_s.gsub("q_", ""),
+          :question_reference => a0.to_s.gsub(/^q_/, ""),
           :rule_key => reference_identifier 
         }.merge(
             a2.is_a?(Hash) ? a2 : { :answer_reference => 
-                                      a2.to_s.gsub("a_", "") }
+                                      a2.to_s.gsub(/^a_/, "") }
           )
       )
   end
@@ -265,7 +265,7 @@ class Answer < ActiveRecord::Base
     when :none, :omit # is_exclusive erases and disables other checkboxes and input elements
       self.text_args(arg.to_s.humanize).merge({:is_exclusive => true})
     when :integer, :date, :time, :datetime, :text, :datetime, :string
-      self.text_args(arg.to_s.humanize).merge({:response_class => arg.to_s, :hide_label => true})
+      self.text_args(arg.to_s.humanize).merge({:response_class => arg.to_s, :display_type => "hidden_label"})
     end
   end
 end

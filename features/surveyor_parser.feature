@@ -199,3 +199,91 @@ Feature: Survey creation
     Then there should be 5 dependencies
     And question "copd_sh_1a" should have a dependency with rule "A"
     And question "copd_sh_1ba" should have a dependency with rule "E"
+
+  Scenario: Dependencies on questions inside of a group
+    Given the survey
+    """
+      survey "Phone Screen Questions" do
+        section "Phone Screen" do
+          q_diabetes "Diabetes", :pick => :one
+          a_yes "Yes"
+          a_no "No"
+
+          q_high_blood_preassure "High blood pressure?", :pick => :one
+          a_yes "Yes"
+          a_no "No"
+
+          group do 
+            dependency :rule => "A"
+            condition_A :q_diabetes, "==", :a_yes
+            label "It looks like you are not eligible for this specific study at the time"
+          end
+
+          group "Eligible" do
+            dependency :rule => "A"
+            condition_A :q_diabetes, "==", :a_no
+
+            label "You're Eligible!"
+
+            label "You need medical clearance"
+            dependency :rule => "A"
+            condition_A :q_high_blood_preassure, "==", :a_yes
+
+            label "You don't need medical clearance"
+            dependency :rule => "A"
+            condition_A :q_high_blood_preassure, "==", :a_no
+          end
+        end
+      end
+    """
+    Then there should be 4 dependencies
+    And 2 dependencies should depend on questions
+    And 2 dependencies should depend on question groups
+
+  Scenario: Dependencies with "a"
+    Given the survey
+    """
+      survey "Dependencies with 'a'" do
+        section "First" do
+          q_data_collection "Disease data collection", :pick => :one
+          a_via_chart_review "Via chart review"
+          a_via_patient_interview "Via patient interview/questionnaire"
+
+          q_myocardial_infaction "Myocardinal Infarction", :pick => :one
+          dependency :rule => "A"
+          condition_A :q_data_collection, "==", :a_via_chart_review
+          a_yes "Yes"
+          a_no "No"
+        end
+      end
+    """
+    And there should be 1 dependency with:
+      | rule |
+      | A    |
+    And there should be 1 resolved dependency_condition with:
+      | rule_key |
+      | A        |
+  
+  Scenario: Dependencies with "q"
+    Given the survey
+    """
+      survey "Dependencies with 'q'" do
+        section "First" do
+          q_rawq_collection "Your rockin rawq collection", :pick => :one
+          a_rawqs "Rawqs"
+          a_doesnt_rawq "Doesn't rawq"
+
+          q_do_you_rawq "Do you rawq with your rockin rawq collection?", :pick => :one
+          dependency :rule => "A"
+          condition_A :q_rawq_collection, "==", :a_rawqs
+          a_yes "Yes"
+          a_no "No"
+        end
+      end
+    """
+    And there should be 1 dependency with:
+      | rule |
+      | A    |
+    And there should be 1 resolved dependency_condition with:
+      | rule_key |
+      | A        |

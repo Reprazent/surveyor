@@ -1,3 +1,5 @@
+require 'uuid'
+
 module Surveyor
   module Models
     module AnswerMethods
@@ -29,10 +31,11 @@ module Surveyor
       def default_args
         self.display_order ||= self.question ? self.question.answers.count : 0
         self.is_exclusive ||= false
-        self.hide_label ||= false
+        self.display_type ||= "default"
         self.response_class ||= "answer"
         self.short_text ||= text
         self.data_export_identifier ||= Surveyor::Common.normalize(text)
+        self.api_id ||= UUID.generate
       end
       
       def css_class
@@ -40,7 +43,7 @@ module Surveyor
       end
       
       def split_or_hidden_text(part = nil)
-        return "" if hide_label.to_s == "true"
+        return "" if display_type == "hidden_label"
         part == :pre ? text.split("|",2)[0] : (part == :post ? text.split("|",2)[1] : text)
       end
       

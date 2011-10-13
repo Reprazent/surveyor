@@ -7,12 +7,15 @@ begin
     gem.name = "surveyor"
     gem.summary = %Q{A rails (gem) plugin to enable surveys in your application}
     gem.email = "yoon@northwestern.edu"
-    gem.homepage = "http://github.com/breakpointer/surveyor"
+    gem.homepage = "http://github.com/NUBIC/surveyor"
     gem.authors = ["Brian Chamberlain", "Mark Yoon"]
     gem.add_dependency 'haml'
+    gem.add_dependency 'sass'
     gem.add_dependency 'fastercsv'
     gem.add_dependency 'formtastic'
+    gem.add_dependency 'uuid'
     gem.add_development_dependency "yard", ">= 0"
+    gem.post_install_message = "Thanks for installing surveyor! The time has come to run the surveyor generator and migrate your database, even if you are upgrading."
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
   end
   Jeweler::GemcutterTasks.new

@@ -19,10 +19,10 @@ module Surveyor
         base.instance_eval do
           def applicable_attributes(attrs)
             result = HashWithIndifferentAccess.new(attrs)
-            result[:answer_id] = result[:answer_id].compact.delete_if(&:blank?) if result[:answer_id].is_a?(Array)
-            if result[:answer_id].present? && result[:string_value] && Answer.exists?(result[:answer_id])
-              answer = Answer.find(result[:answer_id])
-              result.delete(:string_value) unless answer.is_a?(Array)&&answer.response_class && answer.response_class.to_sym == :string
+            answer_id = result[:answer_id].is_a?(Array) ? result[:answer_id].last : result[:answer_id] # checkboxes are arrays / radio buttons are not arrays
+            if result[:string_value] && !answer_id.blank? && Answer.exists?(answer_id)
+              answer = Answer.find(answer_id)
+              result.delete(:string_value) unless answer.response_class && answer.response_class.to_sym == :string
             end
             result
           end

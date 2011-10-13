@@ -1,3 +1,5 @@
+require 'uuid'
+
 module Surveyor
   module Models
     module QuestionMethods
@@ -37,6 +39,7 @@ module Surveyor
         self.display_order ||= self.survey_section ? self.survey_section.questions.count : 0
         self.data_export_identifier ||= Surveyor::Common.normalize(text)
         self.short_text ||= text
+        self.api_id ||= UUID.generate
       end
       
       def pick=(val)

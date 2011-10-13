@@ -36,7 +36,7 @@ Feature: Survey creation
       | blue   |
       | orange |
       | brown  |
-      
+
   Scenario: Default answers
     Given the survey
     """
@@ -81,7 +81,7 @@ Feature: Survey creation
       end
     """
     Then question "1" should have correct answer "oink"
-    
+
   Scenario: Custom css class
     Given the survey
     """
@@ -91,13 +91,16 @@ Feature: Survey creation
           a :string, :custom_class => "my_custom_class"
           q "What is your favorite state?"
           a :string
+          q "Anything else to say?", :pick => :any
+          a "yes", :string, :custom_class => "other_custom_class"
         end
       end
     """
     When I start the "Movies" survey
-    Then the element "input[type='text']:first" should have the class "my_custom_class"
-    # Then the element "input[type='text']:last" should not contain the class attribute
-    
+    Then the element "input[type='text']:first.my_custom_class" should exist
+    And the element "input[type='checkbox'].other_custom_class" should exist
+    And the element "input[type='text'].other_custom_class" should exist
+
   Scenario: A pick one question with an option for other
     Given the survey
     """
@@ -133,7 +136,7 @@ Feature: Survey creation
     """
     When I start the "Movies" survey
     Then a dropdown should exist with the options "Action, Comedy, Mystery"
-    
+
   Scenario: A pick one question with an option for other
     Given the survey
     """
@@ -149,8 +152,230 @@ Feature: Survey creation
     """
     When I start the "Favorites" survey
     Then I choose "other"
-    And I fill in "/.*string_value.*/" with "shrimp"
+    And I fill in "r_1_string_value" with "shrimp"
     And I press "Click here to finish"
     Then there should be 1 response set with 1 response with:
     | shrimp |
-    
+
+  Scenario: Checkboxes with text area
+    Given the survey
+    """
+      survey "Websites" do
+        section "Search engines" do
+          q "Have you ever used the following services?", :pick => :any
+          a "Yellowpages.com|Describe your experience", :text
+          a "Google.com|Describe your experience", :text
+          a "Bing.com|Describe your experience", :text
+        end
+      end
+    """
+    When I start the "Websites" survey
+    Then there should be 3 checkboxes
+    And there should be 3 text areas
+
+  Scenario: "Double letter rule keys"
+    Given the survey
+    """
+      survey "Doubles" do
+        section "Two" do
+          q_twin "Are you a twin?", :pick => :one
+          a_yes "Oh yes"
+          a_no "Oh no"
+
+          q_two_first_names "Do you have two first names?", :pick => :one
+          a_yes "Why yes"
+          a_no "Why no"
+
+          q "Do you want to be part of an SNL skit?", :pick => :one
+          a_yes "Um yes"
+          a_no "Um no"
+          dependency :rule => "A or AA"
+          condition_A :q_twin, "==", :a_yes
+          condition_AA :q_two_first_names, "==", :a_yes
+        end
+        section "Deux" do
+          label "Here for the ride"
+        end
+        section "Three" do
+          label "Here for the ride"
+        end
+      end
+    """
+    When I start the "Doubles" survey
+    Then I choose "Oh yes"
+    And I press "Deux"
+    And I press "Two"
+    Then the question "Do you want to be part of an SNL skit?" should be triggered
+
+  Scenario: "Changing dropdowns"
+    Given the survey
+    """
+      survey "Drop" do
+        section "Like it is hot" do
+          q "Name", :pick => :one, :display_type => :dropdown
+          a "Snoop"
+          a "Dogg"
+          a "D-O double G"
+          a "S-N double O-P, D-O double G"
+        end
+        section "Two" do
+          label "Here for the ride"
+        end
+        section "Three" do
+          label "Here for the ride"
+        end
+      end
+    """
+    When I start the "Drop" survey
+    Then I select "Snoop" from "Name"
+    And I press "Two"
+    And I press "Like it is hot"
+    And I select "Dogg" from "Name"
+    And I press "Two"
+    Then there should be 1 response with answer "Dogg"
+
+  Scenario: "Saving grids"
+    Given the survey
+    """
+      survey "Grid" do
+        section "One" do
+          grid "Tell us how often do you cover these each day" do
+            a "1"
+            a "2"
+            a "3"
+            q "Head", :pick => :one
+            q "Knees", :pick => :one
+            q "Toes", :pick => :one
+          end
+        end
+        section "Two" do
+          label "Here for the ride"
+        end
+        section "Three" do
+          label "Here for the ride"
+        end
+      end
+    """
+    When I start the "Grid" survey
+    And I choose "1"
+    And I press "Two"
+    And I press "One"
+    Then there should be 1 response with answer "1"
+
+  Scenario: "Dates"
+    Given the survey
+    """
+      survey "When" do
+        section "One" do
+          q "Tell us when you want to meet"
+          a "Give me a date", :date
+        end
+        section "Two" do
+          q "Tell us when you'd like to eat"
+          a :time
+        end
+        section "Three" do
+          q "Tell us when you'd like a phone call"
+          a :datetime
+        end
+      end
+    """
+    When I start the "When" survey
+    # 2/14/11
+    And I fill in "Give me a date" with "2011-02-14"
+    # 1:30am
+    And I press "Two"
+    And I select "01" from "Hour"
+    And I select "30" from "Minute"
+    # 2/15/11 5:30pm
+    And I press "Three"
+    And I select "2011" from "Year"
+    And I select "February" from "Month"
+    And I select "15" from "Day"
+    And I select "17" from "Hour"
+    And I select "30" from "Minute"
+    And I press "One"
+
+    Then there should be 3 datetime responses with
+      | datetime_value      |
+      | 2011-02-14 00:00:00 |
+      | 2001-01-01 01:30:00 |
+      | 2011-02-15 17:30:00 |
+
+    # 2/13/11
+    And I fill in "Give me a date" with "2011-02-13"
+    # 1:30pm
+    And I press "Two"
+    And I select "13" from "Hour"
+    # 2/15/11 5:00pm
+    And I press "Three"
+    And I select "00" from "Minute"
+    And I press "Click here to finish"
+
+    Then there should be 3 datetime responses with
+      | datetime_value      |
+      | 2011-02-13 00:00:00 |
+      | 2001-01-01 13:30:00 |
+      | 2011-02-15 17:00:00 |
+
+  Scenario: "Images"
+    Given the survey
+    """
+      survey "Images" do
+        section "One" do
+          q "Which way?"
+          a "/images/surveyor/next.gif", :display_type => "image"
+          a "/images/surveyor/prev.gif", :display_type => "image"
+        end
+      end
+    """
+    When I start the "Images" survey
+    Then I should see the image "/images/surveyor/next.gif"
+    And I should see the image "/images/surveyor/prev.gif"
+
+  @javascript
+  Scenario: "Unchecking Checkboxes"
+    Given the survey
+    """
+      survey "Travels" do
+        section "Countries" do
+          q "Which of these countries have you visited?", :pick => :any
+          a "Ireland"
+          a "Kenya"
+          a "Singapore"
+        end
+        section "Activities" do
+          q "What do you like to do on vacation?", :pick => :any
+          a "Eat good food"
+          a "Lie on the beach"
+          a "Wander around cool neighborhoods"
+        end
+      end
+    """
+    When I go to the surveys page
+    And I wait 1 seconds
+    And I start the "Travels" survey
+    And I wait 1 seconds
+    Then there should be 3 checkboxes
+    And I wait 1 seconds
+    When I check "Singapore"
+    And I wait 1 seconds
+    And I press "Activities"
+    And I wait 1 seconds
+    And I press "Countries"
+    And I wait 1 seconds
+    Then the "Singapore" checkbox should be checked
+    And I wait 1 seconds
+    When I uncheck "Singapore"
+    And I wait 1 seconds
+    And I press "Activities"
+    And I wait 1 seconds
+    And I press "Countries"
+    And I wait 1 seconds
+    Then the "Singapore" checkbox should not be checked
+    When I check "Singapore"
+    And I wait 1 seconds
+    Then 1 responses should exist
+    When I uncheck "Singapore"
+    And I wait 1 seconds
+    Then 0 responses should exist

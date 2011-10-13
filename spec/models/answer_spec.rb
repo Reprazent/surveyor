@@ -22,9 +22,9 @@ describe Answer, "when creating a new answer" do
     @answer.css_class.should == "exclusive foo bar"
   end
   
-  it "should hide the label when hide_label is set" do
+  it "should hide the label when display_type hidden_label is set" do
     @answer.split_or_hidden_text.should == "Red"
-    @answer.hide_label = true
+    @answer.display_type = "hidden_label"
     @answer.split_or_hidden_text.should == ""
   end
   it "should split up pre/post labels" do
@@ -36,5 +36,9 @@ describe Answer, "when creating a new answer" do
     v_id = Factory(:validation, :answer => @answer).id
     @answer.destroy
     Validation.find_by_id(v_id).should be_nil
+  end
+  
+  it "should have an api_id" do
+    @answer.api_id.length.should == 36
   end
 end

@@ -1,3 +1,5 @@
+require 'uuid'
+
 module Surveyor
   module Models
     module SurveyMethods
@@ -36,9 +38,11 @@ module Surveyor
 
       def default_args
         self.inactive_at ||= DateTime.now
+        self.api_id ||= UUID.generate
       end
 
       def title=(value)
+        return if value == self.title
         adjusted_value = value
         while Survey.find_by_access_code(Survey.to_normalized_string(adjusted_value))
           i ||= 0
@@ -46,7 +50,7 @@ module Surveyor
           adjusted_value = "#{value} #{i.to_s}"
         end
         self.access_code = Survey.to_normalized_string(adjusted_value)
-        super(adjusted_value)        
+        super(adjusted_value)
         # self.access_code = Survey.to_normalized_string(value)
         # super
       end
