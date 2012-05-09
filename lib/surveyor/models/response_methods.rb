@@ -41,7 +41,7 @@ module Surveyor
         if self.answer.response_class == "answer" and self.answer_id
           return self.answer.text
         else
-          return "#{(self.string_value || self.text_value || self.integer_value || self.float_value || nil).to_s}"
+          return "#{(self.string_value || self.text_value || self.integer_value || self.float_value || self.datetime_value.strftime("%d/%m/%Y") || nil).to_s}"
         end
       end
     end
