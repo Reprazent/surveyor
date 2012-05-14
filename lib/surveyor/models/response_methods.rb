@@ -41,7 +41,13 @@ module Surveyor
         if self.answer.response_class == "answer" and self.answer_id
           return self.answer.text
         else
-          return "#{(self.string_value || self.text_value || self.integer_value || self.float_value || self.datetime_value.try(:strftime, "%d/%m/%Y") || nil).to_s}"
+          case self.answer.response_class
+          when "time" then self.datetime_value.try(:strftime, "%H:%M")
+          when "date" then self.datetime_value.try(:strftime, "%d/%m/%Y")
+          when "datetime" then self.datetime_value.try(:strftime, "%d/%m/%Y %H:%M")
+          else
+            (self.string_value || self.text_value || self.integer_value || self.float_value || nil).to_s
+          end
         end
       end
     end
