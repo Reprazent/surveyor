@@ -40,7 +40,8 @@ module SurveyorHelper
     @n ||= 0
     return image_tag(obj.text) if obj.is_a?(Question) and obj.display_type == "image"
     return obj.text if obj.is_a?(Question) and (obj.dependent? or obj.display_type == "label" or obj.part_of_group?)
-    "<span class='question_index_#{obj.id}'>#{@n += 1})</span> #{obj.text}"
+    survey_id = obj.is_a?(Question) ? obj.survey_section.survey.id : obj.questions.first.survey_section.survey.id
+    "<span class='question_index_#{survey_id}'>#{@n += 1})</span> #{obj.text}"
   end
   # def split_text(text = "") # Split text into with "|" delimiter - parts to go before/after input element
   #   {:prefix => text.split("|")[0].blank? ? "&nbsp;" : text.split("|")[0], :postfix => text.split("|")[1] || "&nbsp;"}
